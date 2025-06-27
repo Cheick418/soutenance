@@ -32,6 +32,17 @@ const Finalisation = sequelize.define("finalisation", {
     ),
     defaultValue: "en attente",
   }, // en attente, valide_definitivement, refuse_corrections, en_attente_corrections
+  // Champs pour la gestion des reçus et attestations
+  recu_bibliothecaire: { type: DataTypes.STRING }, // Chemin du PDF du reçu
+  statut_recu: {
+    type: DataTypes.ENUM("en_attente", "conforme", "non_conforme"),
+    defaultValue: "en_attente",
+  },
+  commentaire_recu: { type: DataTypes.TEXT }, // Commentaires sur le reçu
+  date_attestation_provisoire: { type: DataTypes.DATE }, // Date d'attestation provisoire
+  date_attestation_definitive: { type: DataTypes.DATE }, // Date d'attestation définitive
+  attestation_provisoire: { type: DataTypes.STRING }, // Chemin du PDF attestation provisoire
+  attestation_definitive: { type: DataTypes.STRING }, // Chemin du PDF attestation définitive
 });
 
 module.exports = Finalisation;

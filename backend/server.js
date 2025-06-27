@@ -767,6 +767,257 @@ app.put(
   }
 );
 
+// Upload du reçu de bibliothécaire (étudiant)
+app.post(
+  "/api/finalisations/:id/upload-recu",
+  authenticateToken,
+  upload.single("recu_bibliothecaire"),
+  async (req, res) => {
+    if (req.user.type !== "etudiant")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (finalisation.etudiantId !== req.user.id)
+      return res.status(403).json({ error: "Accès refusé" });
+
+    if (finalisation.statut_finalisation !== "valide_definitivement")
+      return res.status(400).json({
+        error: "Cette finalisation n'est pas encore validée définitivement",
+      });
+
+    if (!req.file) return res.status(400).json({ error: "Fichier PDF requis" });
+
+    try {
+      await finalisation.update({
+        recu_bibliothecaire: req.file.filename,
+        statut_recu: "en_attente",
+      });
+
+      res.json({ message: "Reçu de bibliothécaire uploadé avec succès" });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Valider/refuser le reçu de bibliothécaire (admin)
+app.put(
+  "/api/finalisations/:id/valider-recu",
+  authenticateToken,
+  async (req, res) => {
+    if (req.user.type !== "admin")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const {
+      statut_recu,
+      commentaire_recu,
+      date_attestation_provisoire,
+      date_attestation_definitive,
+    } = req.body;
+    const finalisation = await Finalisation.findByPk(req.params.id);
+
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (!finalisation.recu_bibliothecaire) {
+      return res
+        .status(400)
+        .json({ error: "Aucun reçu de bibliothécaire uploadé" });
+    }
+
+    try {
+      const updates = {
+        statut_recu,
+        commentaire_recu: commentaire_recu || null,
+      };
+
+      // Si conforme, ajouter les dates d'attestation
+      if (statut_recu === "conforme") {
+        updates.date_attestation_provisoire =
+          date_attestation_provisoire || null;
+        updates.date_attestation_definitive =
+          date_attestation_definitive || null;
+      }
+
+      await finalisation.update(updates);
+
+      res.json(finalisation);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Upload de l'attestation provisoire (admin)
+app.post(
+  "/api/finalisations/:id/upload-attestation-provisoire",
+  authenticateToken,
+  upload.single("attestation_provisoire"),
+  async (req, res) => {
+    if (req.user.type !== "admin")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (finalisation.statut_recu !== "conforme") {
+      return res
+        .status(400)
+        .json({ error: "Le reçu de bibliothécaire doit être conforme" });
+    }
+
+    if (!req.file) return res.status(400).json({ error: "Fichier PDF requis" });
+
+    try {
+      await finalisation.update({
+        attestation_provisoire: req.file.filename,
+      });
+
+      res.json({ message: "Attestation provisoire uploadée avec succès" });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Upload de l'attestation définitive (admin)
+app.post(
+  "/api/finalisations/:id/upload-attestation-definitive",
+  authenticateToken,
+  upload.single("attestation_definitive"),
+  async (req, res) => {
+    if (req.user.type !== "admin")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (finalisation.statut_recu !== "conforme") {
+      return res
+        .status(400)
+        .json({ error: "Le reçu de bibliothécaire doit être conforme" });
+    }
+
+    if (!req.file) return res.status(400).json({ error: "Fichier PDF requis" });
+
+    try {
+      await finalisation.update({
+        attestation_definitive: req.file.filename,
+      });
+
+      res.json({ message: "Attestation définitive uploadée avec succès" });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Télécharger le reçu de bibliothécaire
+app.get(
+  "/api/finalisations/:id/download-recu",
+  authenticateToken,
+  async (req, res) => {
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (req.user.type === "etudiant" && finalisation.etudiantId !== req.user.id)
+      return res.status(403).json({ error: "Accès refusé" });
+
+    if (!finalisation.recu_bibliothecaire) {
+      return res
+        .status(404)
+        .json({ error: "Aucun reçu de bibliothécaire disponible" });
+    }
+
+    const filePath = path.join(
+      __dirname,
+      "uploads",
+      finalisation.recu_bibliothecaire
+    );
+    res.download(filePath);
+  }
+);
+
+// Télécharger l'attestation provisoire
+app.get(
+  "/api/finalisations/:id/download-attestation-provisoire",
+  authenticateToken,
+  async (req, res) => {
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (req.user.type === "etudiant" && finalisation.etudiantId !== req.user.id)
+      return res.status(403).json({ error: "Accès refusé" });
+
+    if (!finalisation.attestation_provisoire) {
+      return res
+        .status(404)
+        .json({ error: "Aucune attestation provisoire disponible" });
+    }
+
+    const filePath = path.join(
+      __dirname,
+      "uploads",
+      finalisation.attestation_provisoire
+    );
+    res.download(filePath);
+  }
+);
+
+// Télécharger l'attestation définitive
+app.get(
+  "/api/finalisations/:id/download-attestation-definitive",
+  authenticateToken,
+  async (req, res) => {
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (req.user.type === "etudiant" && finalisation.etudiantId !== req.user.id)
+      return res.status(403).json({ error: "Accès refusé" });
+
+    if (!finalisation.attestation_definitive) {
+      return res
+        .status(404)
+        .json({ error: "Aucune attestation définitive disponible" });
+    }
+
+    const filePath = path.join(
+      __dirname,
+      "uploads",
+      finalisation.attestation_definitive
+    );
+    res.download(filePath);
+  }
+);
+
+// Liste des finalisations avec reçus en attente (admin)
+app.get(
+  "/api/finalisations-avec-recus",
+  authenticateToken,
+  async (req, res) => {
+    if (req.user.type !== "admin")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const finalisations = await Finalisation.findAll({
+      where: {
+        statut_finalisation: "valide_definitivement",
+        recu_bibliothecaire: { [Op.ne]: null }, // Avec reçu uploadé
+      },
+      order: [["id", "ASC"]],
+    });
+
+    res.json(finalisations);
+  }
+);
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Serveur backend démarré sur http://localhost:${PORT}`);
