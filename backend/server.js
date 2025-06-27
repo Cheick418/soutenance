@@ -11,6 +11,7 @@ const multer = require("multer");
 const path = require("path");
 const Finalisation = require("./models/finalisation");
 const DemandeSoutenance = require("./models/demandeSoutenance");
+const { Op } = require("sequelize");
 require("dotenv").config();
 
 const app = express();
@@ -486,6 +487,127 @@ app.put(
   }
 );
 
+// Finaliser un document après soutenance (admin)
+app.put(
+  "/api/finalisations/:id/finaliser",
+  authenticateToken,
+  async (req, res) => {
+    if (req.user.type !== "admin")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const { note, mention, validation, commentaires, statut_finalisation } =
+      req.body;
+    const finalisation = await Finalisation.findByPk(req.params.id);
+
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    // Validation des données
+    if (note && (note < 0 || note > 20)) {
+      return res.status(400).json({ error: "La note doit être entre 0 et 20" });
+    }
+
+    if (
+      mention &&
+      !["Passable", "Assez bien", "Bien", "Très bien", "Excellent"].includes(
+        mention
+      )
+    ) {
+      return res.status(400).json({ error: "Mention invalide" });
+    }
+
+    try {
+      await finalisation.update({
+        note,
+        mention,
+        validation: validation !== undefined ? validation : true,
+        commentaires,
+        statut_finalisation: statut_finalisation || "valide_definitivement",
+      });
+
+      res.json(finalisation);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Upload du rapport de corrections (PDF)
+app.post(
+  "/api/finalisations/:id/upload-corrections",
+  authenticateToken,
+  upload.single("rapport_corrections"),
+  async (req, res) => {
+    if (req.user.type !== "admin")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (!req.file) return res.status(400).json({ error: "Fichier PDF requis" });
+
+    try {
+      await finalisation.update({
+        rapport_corrections: req.file.filename,
+      });
+
+      res.json({ message: "Rapport de corrections uploadé avec succès" });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// Télécharger le rapport de corrections
+app.get(
+  "/api/finalisations/:id/download-corrections",
+  authenticateToken,
+  async (req, res) => {
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (req.user.type === "etudiant" && finalisation.etudiantId !== req.user.id)
+      return res.status(403).json({ error: "Accès refusé" });
+
+    if (!finalisation.rapport_corrections) {
+      return res
+        .status(404)
+        .json({ error: "Aucun rapport de corrections disponible" });
+    }
+
+    const filePath = path.join(
+      __dirname,
+      "uploads",
+      finalisation.rapport_corrections
+    );
+    res.download(filePath);
+  }
+);
+
+// Liste des finalisations en attente de finalisation (admin)
+app.get(
+  "/api/finalisations-en-attente",
+  authenticateToken,
+  async (req, res) => {
+    if (req.user.type !== "admin")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const finalisations = await Finalisation.findAll({
+      where: {
+        statut: "valide", // Seulement les finalisations déjà validées
+        statut_finalisation: {
+          [Op.or]: ["en attente", "en_attente_corrections"], // En attente de finalisation OU resoumis après corrections
+        },
+      },
+      order: [["id", "ASC"]],
+    });
+
+    res.json(finalisations);
+  }
+);
+
 // Créer une demande de passage en soutenance (étudiant)
 app.post("/api/demande-soutenance", authenticateToken, async (req, res) => {
   if (req.user.type !== "etudiant")
@@ -595,6 +717,53 @@ app.put(
     if (!demande) return res.status(404).json({ error: "Demande non trouvée" });
     await demande.update({ statut: "ignore" });
     res.json(demande);
+  }
+);
+
+// Resoumettre des documents après corrections (étudiant)
+app.put(
+  "/api/finalisations/:id/resoumettre",
+  authenticateToken,
+  upload.fields([
+    { name: "rapport_final", maxCount: 1 },
+    { name: "accord_rapporteur", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    if (req.user.type !== "etudiant")
+      return res.status(403).json({ error: "Accès refusé" });
+
+    const finalisation = await Finalisation.findByPk(req.params.id);
+    if (!finalisation)
+      return res.status(404).json({ error: "Finalisation non trouvée" });
+
+    if (finalisation.etudiantId !== req.user.id)
+      return res.status(403).json({ error: "Accès refusé" });
+
+    if (finalisation.statut_finalisation !== "refuse_corrections")
+      return res
+        .status(400)
+        .json({ error: "Cette finalisation ne peut pas être resoumise" });
+
+    try {
+      const updates = {};
+
+      if (req.files.rapport_final) {
+        updates.rapport_final = req.files.rapport_final[0].filename;
+      }
+
+      if (req.files.accord_rapporteur) {
+        updates.accord_rapporteur = req.files.accord_rapporteur[0].filename;
+      }
+
+      // Remettre en attente de validation
+      updates.statut_finalisation = "en_attente_corrections";
+
+      await finalisation.update(updates);
+
+      res.json({ message: "Documents resoumis avec succès" });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   }
 );
 
