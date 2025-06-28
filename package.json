@@ -1,6 +1,16 @@
 {
+  "name": "fond-project",
+  "version": "1.0.0",
+  "description": "Projet avec backend et frontend",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && npm run start",
+    "frontend": "cd frontend && npm start",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
   "dependencies": {
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.0.1"
+    "multer": "^2.0.1",
+    "concurrently": "^8.2.2"
   }
 }
