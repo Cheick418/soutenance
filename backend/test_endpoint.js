@@ -15,7 +15,7 @@ async function testEndpoint() {
     });
 
     const loginData = await loginResponse.json();
-    console.log("Login response:", loginData);
+    //console.log("Login response:", loginData);
 
     if (loginData.token) {
       // Test de l'endpoint des finalisations après soutenance
@@ -29,7 +29,7 @@ async function testEndpoint() {
       );
 
       const finalisationsData = await finalisationsResponse.json();
-      console.log("Finalisations response:", finalisationsData);
+      //console.log("Finalisations response:", finalisationsData);
     }
   } catch (error) {
     console.error("Error:", error);
