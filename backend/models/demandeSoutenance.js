@@ -13,6 +13,15 @@ const DemandeSoutenance = sequelize.define("demande_soutenance", {
   president_jury: { type: DataTypes.STRING },
   tuteur: { type: DataTypes.STRING },
   maitre_stage: { type: DataTypes.STRING },
+  president_nom: { type: DataTypes.STRING },
+  president_mail: { type: DataTypes.STRING },
+  president_numero: { type: DataTypes.STRING },
+  tuteur_nom: { type: DataTypes.STRING },
+  tuteur_mail: { type: DataTypes.STRING },
+  tuteur_numero: { type: DataTypes.STRING },
+  maitre_nom: { type: DataTypes.STRING },
+  maitre_mail: { type: DataTypes.STRING },
+  maitre_numero: { type: DataTypes.STRING },
 });
 
 module.exports = DemandeSoutenance;

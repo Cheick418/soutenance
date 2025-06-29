@@ -264,12 +264,37 @@ app.post(
       if (!files.rapport || !files.accord_maitre || !files.accord_tuteur) {
         return res.status(400).json({ error: "3 fichiers PDF requis" });
       }
+      // Chercher la dernière demande de stage validée pour récupérer tuteur/maitre
+      let tuteur_nom = null,
+        tuteur_mail = null,
+        tuteur_numero = null;
+      let maitre_nom = null,
+        maitre_mail = null,
+        maitre_numero = null;
+      const lastStage = await DemandeStage.findOne({
+        where: { etudiantId: req.user.id, statut: "valide" },
+        order: [["id", "DESC"]],
+      });
+      if (lastStage) {
+        tuteur_nom = lastStage.tuteur_nom || null;
+        tuteur_mail = lastStage.tuteur_mail || null;
+        tuteur_numero = lastStage.tuteur_numero || null;
+        maitre_nom = lastStage.maitre_nom || null;
+        maitre_mail = lastStage.maitre_mail || null;
+        maitre_numero = lastStage.maitre_numero || null;
+      }
       const soutenance = await Soutenance.create({
         etudiantId: req.user.id,
         theme,
         rapport: files.rapport[0].filename,
         accord_maitre: files.accord_maitre[0].filename,
         accord_tuteur: files.accord_tuteur[0].filename,
+        tuteur_nom,
+        tuteur_mail,
+        tuteur_numero,
+        maitre_nom,
+        maitre_mail,
+        maitre_numero,
       });
       res.json(soutenance);
     } catch (err) {
@@ -725,28 +750,32 @@ app.put(
   async (req, res) => {
     if (req.user.type !== "admin")
       return res.status(403).json({ error: "Accès refusé" });
-    let { date, heure, salle, president_jury, tuteur, maitre_stage } = req.body;
+    let {
+      date,
+      heure,
+      salle,
+      president_nom,
+      president_mail,
+      president_numero,
+      tuteur_nom,
+      tuteur_mail,
+      tuteur_numero,
+      maitre_nom,
+      maitre_mail,
+      maitre_numero,
+    } = req.body;
     const demande = await DemandeSoutenance.findByPk(req.params.id);
     if (!demande) return res.status(404).json({ error: "Demande non trouvée" });
-    // Si tuteur ou maitre_stage non fournis, on va chercher la dernière demande de stage validée
-    if (!tuteur || !maitre_stage) {
-      const lastStage = await DemandeStage.findOne({
-        where: { etudiantId: demande.etudiantId, statut: "valide" },
-        order: [["id", "DESC"]],
-      });
-      if (lastStage) {
-        if (!tuteur) {
-          tuteur = `${lastStage.tuteur_nom || ""} (${
-            lastStage.tuteur_mail || ""
-          }, ${lastStage.tuteur_numero || ""})`;
-        }
-        if (!maitre_stage) {
-          maitre_stage = `${lastStage.maitre_nom || ""} (${
-            lastStage.maitre_mail || ""
-          }, ${lastStage.maitre_numero || ""})`;
-        }
-      }
-    }
+    // Concaténer pour les anciens champs (pour compatibilité)
+    const president_jury = `${president_nom || ""} (${president_mail || ""}, ${
+      president_numero || ""
+    })`;
+    const tuteur = `${tuteur_nom || ""} (${tuteur_mail || ""}, ${
+      tuteur_numero || ""
+    })`;
+    const maitre_stage = `${maitre_nom || ""} (${maitre_mail || ""}, ${
+      maitre_numero || ""
+    })`;
     // Calcul de l'ordre (dernier ordre + 1)
     const maxOrdre = (await DemandeSoutenance.max("ordre")) || 0;
     await demande.update({
@@ -758,6 +787,15 @@ app.put(
       president_jury,
       tuteur,
       maitre_stage,
+      president_nom,
+      president_mail,
+      president_numero,
+      tuteur_nom,
+      tuteur_mail,
+      tuteur_numero,
+      maitre_nom,
+      maitre_mail,
+      maitre_numero,
     });
     res.json(demande);
   }
