@@ -50,7 +50,7 @@ app.post("/api/login", async (req, res) => {
   const admin = await Admin.findOne({ where: { email, password } });
   if (admin) {
     const token = jwt.sign({ id: admin.id, type: "admin" }, JWT_SECRET, {
-      expiresIn: "2h",
+      expiresIn: "24h",
     });
     return res.json({ type: "admin", user: admin, token });
   }
@@ -58,7 +58,7 @@ app.post("/api/login", async (req, res) => {
   const etudiant = await Etudiant.findOne({ where: { email, password } });
   if (etudiant) {
     const token = jwt.sign({ id: etudiant.id, type: "etudiant" }, JWT_SECRET, {
-      expiresIn: "2h",
+      expiresIn: "24h",
     });
     return res.json({ type: "etudiant", user: etudiant, token });
   }
@@ -163,7 +163,11 @@ app.post("/api/demandes", authenticateToken, async (req, res) => {
 app.get("/api/demandes", authenticateToken, async (req, res) => {
   let demandes;
   if (req.user.type === "admin") {
-    demandes = await DemandeStage.findAll();
+    demandes = await DemandeStage.findAll({
+      include: [
+        { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+      ],
+    });
   } else if (req.user.type === "etudiant") {
     demandes = await DemandeStage.findAll({
       where: { etudiantId: req.user.id },
@@ -176,7 +180,11 @@ app.get("/api/demandes", authenticateToken, async (req, res) => {
 
 // Détail d'une demande
 app.get("/api/demandes/:id", authenticateToken, async (req, res) => {
-  const demande = await DemandeStage.findByPk(req.params.id);
+  const demande = await DemandeStage.findByPk(req.params.id, {
+    include: [
+      { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+    ],
+  });
   if (!demande) return res.status(404).json({ error: "Demande non trouvée" });
   // Étudiant ne peut voir que ses demandes
   if (req.user.type === "etudiant" && demande.etudiantId !== req.user.id)
@@ -274,7 +282,11 @@ app.post(
 app.get("/api/soutenances", authenticateToken, async (req, res) => {
   let soutenances;
   if (req.user.type === "admin") {
-    soutenances = await Soutenance.findAll();
+    soutenances = await Soutenance.findAll({
+      include: [
+        { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+      ],
+    });
   } else if (req.user.type === "etudiant") {
     soutenances = await Soutenance.findAll({
       where: { etudiantId: req.user.id },
@@ -287,7 +299,11 @@ app.get("/api/soutenances", authenticateToken, async (req, res) => {
 
 // Détail d'une soutenance
 app.get("/api/soutenances/:id", authenticateToken, async (req, res) => {
-  const soutenance = await Soutenance.findByPk(req.params.id);
+  const soutenance = await Soutenance.findByPk(req.params.id, {
+    include: [
+      { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+    ],
+  });
   if (!soutenance)
     return res.status(404).json({ error: "Soutenance non trouvée" });
   if (req.user.type === "etudiant" && soutenance.etudiantId !== req.user.id)
@@ -431,7 +447,11 @@ app.post(
 app.get("/api/finalisations", authenticateToken, async (req, res) => {
   let finalisations;
   if (req.user.type === "admin") {
-    finalisations = await Finalisation.findAll();
+    finalisations = await Finalisation.findAll({
+      include: [
+        { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+      ],
+    });
   } else if (req.user.type === "etudiant") {
     finalisations = await Finalisation.findAll({
       where: { etudiantId: req.user.id },
@@ -444,7 +464,11 @@ app.get("/api/finalisations", authenticateToken, async (req, res) => {
 
 // Détail d'une finalisation
 app.get("/api/finalisations/:id", authenticateToken, async (req, res) => {
-  const finalisation = await Finalisation.findByPk(req.params.id);
+  const finalisation = await Finalisation.findByPk(req.params.id, {
+    include: [
+      { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+    ],
+  });
   if (!finalisation)
     return res.status(404).json({ error: "Finalisation non trouvée" });
   if (req.user.type === "etudiant" && finalisation.etudiantId !== req.user.id)
@@ -624,6 +648,9 @@ app.get(
           [Op.or]: ["en attente", "en_attente_corrections"], // En attente de finalisation OU resoumis après corrections
         },
       },
+      include: [
+        { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+      ],
       order: [["id", "ASC"]],
     });
 
@@ -659,6 +686,9 @@ app.get("/api/demande-soutenance", authenticateToken, async (req, res) => {
   let demandes;
   if (req.user.type === "admin") {
     demandes = await DemandeSoutenance.findAll({
+      include: [
+        { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+      ],
       order: [
         ["ordre", "ASC"],
         ["id", "ASC"],
@@ -677,7 +707,11 @@ app.get("/api/demande-soutenance", authenticateToken, async (req, res) => {
 
 // Détail d'une demande de passage en soutenance
 app.get("/api/demande-soutenance/:id", authenticateToken, async (req, res) => {
-  const demande = await DemandeSoutenance.findByPk(req.params.id);
+  const demande = await DemandeSoutenance.findByPk(req.params.id, {
+    include: [
+      { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+    ],
+  });
   if (!demande) return res.status(404).json({ error: "Demande non trouvée" });
   if (req.user.type === "etudiant" && demande.etudiantId !== req.user.id)
     return res.status(403).json({ error: "Accès refusé" });
@@ -1042,6 +1076,9 @@ app.get(
         statut_finalisation: "valide_definitivement",
         recu_bibliothecaire: { [Op.ne]: null }, // Avec reçu uploadé
       },
+      include: [
+        { model: Etudiant, attributes: ["ine", "nom", "prenom", "specialite"] },
+      ],
       order: [["id", "ASC"]],
     });
 
