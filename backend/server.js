@@ -141,6 +141,13 @@ app.put("/api/etudiants/:id", authenticateToken, async (req, res) => {
 app.post("/api/demandes", authenticateToken, async (req, res) => {
   if (req.user.type !== "etudiant")
     return res.status(403).json({ error: "Accès refusé" });
+
+  // Vérification du statut
+  const etudiant = await Etudiant.findByPk(req.user.id);
+  if (!etudiant || etudiant.status !== "actif") {
+    return res.status(403).json({ error: "Votre compte n'est pas actif." });
+  }
+
   try {
     const demande = await DemandeStage.create({
       ...req.body,
@@ -238,6 +245,11 @@ app.post(
   async (req, res) => {
     if (req.user.type !== "etudiant")
       return res.status(403).json({ error: "Accès refusé" });
+    // Vérification du statut
+    const etudiant = await Etudiant.findByPk(req.user.id);
+    if (!etudiant || etudiant.status !== "actif") {
+      return res.status(403).json({ error: "Votre compte n'est pas actif." });
+    }
     try {
       const { theme } = req.body;
       const files = req.files;
@@ -391,6 +403,11 @@ app.post(
   async (req, res) => {
     if (req.user.type !== "etudiant")
       return res.status(403).json({ error: "Accès refusé" });
+    // Vérification du statut
+    const etudiant = await Etudiant.findByPk(req.user.id);
+    if (!etudiant || etudiant.status !== "actif") {
+      return res.status(403).json({ error: "Votre compte n'est pas actif." });
+    }
     try {
       const { theme } = req.body;
       const files = req.files;
@@ -538,9 +555,15 @@ app.post(
   authenticateToken,
   upload.single("rapport_corrections"),
   async (req, res) => {
-    if (req.user.type !== "admin")
+    if (req.user.type !== "admin" && req.user.type !== "etudiant")
       return res.status(403).json({ error: "Accès refusé" });
-
+    // Vérification du statut pour étudiant
+    if (req.user.type === "etudiant") {
+      const etudiant = await Etudiant.findByPk(req.user.id);
+      if (!etudiant || etudiant.status !== "actif") {
+        return res.status(403).json({ error: "Votre compte n'est pas actif." });
+      }
+    }
     const finalisation = await Finalisation.findByPk(req.params.id);
     if (!finalisation)
       return res.status(404).json({ error: "Finalisation non trouvée" });
@@ -731,7 +754,11 @@ app.put(
   async (req, res) => {
     if (req.user.type !== "etudiant")
       return res.status(403).json({ error: "Accès refusé" });
-
+    // Vérification du statut
+    const etudiant = await Etudiant.findByPk(req.user.id);
+    if (!etudiant || etudiant.status !== "actif") {
+      return res.status(403).json({ error: "Votre compte n'est pas actif." });
+    }
     const finalisation = await Finalisation.findByPk(req.params.id);
     if (!finalisation)
       return res.status(404).json({ error: "Finalisation non trouvée" });
@@ -775,7 +802,11 @@ app.post(
   async (req, res) => {
     if (req.user.type !== "etudiant")
       return res.status(403).json({ error: "Accès refusé" });
-
+    // Vérification du statut
+    const etudiant = await Etudiant.findByPk(req.user.id);
+    if (!etudiant || etudiant.status !== "actif") {
+      return res.status(403).json({ error: "Votre compte n'est pas actif." });
+    }
     const finalisation = await Finalisation.findByPk(req.params.id);
     if (!finalisation)
       return res.status(404).json({ error: "Finalisation non trouvée" });
@@ -1017,6 +1048,22 @@ app.get(
     res.json(finalisations);
   }
 );
+
+// Profil de l'utilisateur connecté (étudiant ou admin)
+app.get("/api/me", authenticateToken, async (req, res) => {
+  if (req.user.type === "etudiant") {
+    const etudiant = await Etudiant.findByPk(req.user.id);
+    if (!etudiant)
+      return res.status(404).json({ error: "Étudiant non trouvé" });
+    return res.json(etudiant);
+  }
+  if (req.user.type === "admin") {
+    const admin = await Admin.findByPk(req.user.id);
+    if (!admin) return res.status(404).json({ error: "Admin non trouvé" });
+    return res.json(admin);
+  }
+  res.status(403).json({ error: "Type d'utilisateur inconnu" });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
